@@ -1,0 +1,13 @@
+{
+  "autodeskProduct": "Fusion360",
+  "type": "addin",
+  "id": "f37777d7-45b5-4f42-8999-09d4fe18557f",
+  "author": "",
+  "description": {
+    "": "Adds a Fusion command dialog with sliders for selected user parameters."
+  },
+  "version": "1.0.13",
+  "runOnStartup": true,
+  "supportedOS": "windows|mac",
+  "editEnabled": true
+}
