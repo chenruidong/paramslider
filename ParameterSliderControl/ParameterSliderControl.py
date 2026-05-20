@@ -387,6 +387,7 @@ def _add_parameter_controls(inputs, table, row, spec):
     current_value = _clamp(spec.current_value, spec.minimum, spec.maximum)
     spec.range_minimum = spec.minimum
     spec.range_maximum = spec.maximum
+    ui_unit = _ui_unit(spec)
 
     text = inputs.addTextBoxCommandInput(
         _text_id(spec.name),
@@ -399,12 +400,12 @@ def _add_parameter_controls(inputs, table, row, spec):
 
     minimum = inputs.addFloatSpinnerCommandInput(
         _min_id(spec.name),
-        'Min',
-        spec.display_unit,
-        spec.hard_minimum,
-        spec.hard_maximum,
+        _ui_label('Min', spec),
+        ui_unit,
+        _to_ui_value(spec.hard_minimum, spec),
+        _to_ui_value(spec.hard_maximum, spec),
         spec.input_step,
-        spec.minimum
+        _to_ui_value(spec.minimum, spec)
     )
     _set_spinner_value(minimum, spec.minimum, spec)
     minimum.tooltip = 'Minimum slider value for {}'.format(spec.name)
@@ -412,23 +413,23 @@ def _add_parameter_controls(inputs, table, row, spec):
 
     slider = inputs.addFloatSliderCommandInput(
         _slider_id(spec.name),
-        spec.name,
-        spec.display_unit,
-        spec.minimum,
-        spec.maximum,
+        _ui_label(spec.name, spec),
+        ui_unit,
+        _to_ui_value(spec.minimum, spec),
+        _to_ui_value(spec.maximum, spec),
         False
     )
-    slider.valueOne = current_value
+    slider.valueOne = _to_ui_value(current_value, spec)
     table.addCommandInput(slider, row, 2)
 
     maximum = inputs.addFloatSpinnerCommandInput(
         _max_id(spec.name),
-        'Max',
-        spec.display_unit,
-        spec.hard_minimum,
-        spec.hard_maximum,
+        _ui_label('Max', spec),
+        ui_unit,
+        _to_ui_value(spec.hard_minimum, spec),
+        _to_ui_value(spec.hard_maximum, spec),
         spec.input_step,
-        spec.maximum
+        _to_ui_value(spec.maximum, spec)
     )
     _set_spinner_value(maximum, spec.maximum, spec)
     maximum.tooltip = 'Maximum slider value for {}'.format(spec.name)
@@ -436,12 +437,12 @@ def _add_parameter_controls(inputs, table, row, spec):
 
     spinner = inputs.addFloatSpinnerCommandInput(
         _spinner_id(spec.name),
-        'Value',
-        spec.display_unit,
-        spec.hard_minimum,
-        spec.hard_maximum,
+        _ui_label('Value', spec),
+        ui_unit,
+        _to_ui_value(spec.hard_minimum, spec),
+        _to_ui_value(spec.hard_maximum, spec),
         spec.input_step,
-        current_value
+        _to_ui_value(current_value, spec)
     )
     _set_spinner_value(spinner, current_value, spec)
     spinner.tooltip = 'Direct numeric control for {}'.format(spec.name)
@@ -658,14 +659,38 @@ def _document_distance_unit(design):
     return 'mm'
 
 
+def _ui_unit(spec):
+    if spec.kind == 'angle':
+        return ''
+    return spec.display_unit
+
+
+def _ui_label(label, spec):
+    if spec.kind == 'angle':
+        return '{} (deg)'.format(label)
+    return label
+
+
+def _to_ui_value(value, spec):
+    if spec.kind == 'angle':
+        return math.degrees(value)
+    return value
+
+
+def _from_ui_value(value, spec):
+    if spec.kind == 'angle':
+        return math.radians(value)
+    return value
+
+
 def _changed_value(command_input, spec):
     slider = adsk.core.FloatSliderCommandInput.cast(command_input)
     if slider:
-        return float(slider.valueOne)
+        return _from_ui_value(float(slider.valueOne), spec)
 
     spinner = adsk.core.FloatSpinnerCommandInput.cast(command_input)
     if spinner:
-        return float(spinner.value)
+        return _from_ui_value(float(spinner.value), spec)
 
     return None
 
@@ -673,11 +698,11 @@ def _changed_value(command_input, spec):
 def _value_from_inputs(inputs, param_name, spec):
     slider = adsk.core.FloatSliderCommandInput.cast(inputs.itemById(_slider_id(param_name)))
     if slider:
-        return float(slider.valueOne)
+        return _from_ui_value(float(slider.valueOne), spec)
 
     spinner = adsk.core.FloatSpinnerCommandInput.cast(inputs.itemById(_spinner_id(param_name)))
     if spinner:
-        return float(spinner.value)
+        return _from_ui_value(float(spinner.value), spec)
 
     return None
 
@@ -685,7 +710,7 @@ def _value_from_inputs(inputs, param_name, spec):
 def _range_value_from_input(inputs, input_id, spec):
     spinner = adsk.core.FloatSpinnerCommandInput.cast(inputs.itemById(input_id))
     if spinner:
-        return float(spinner.value)
+        return _from_ui_value(float(spinner.value), spec)
     return None
 
 
@@ -706,7 +731,7 @@ def _refresh_viewport():
 def _set_matching_inputs(inputs, param_name, value, spec, changed_id):
     slider = adsk.core.FloatSliderCommandInput.cast(inputs.itemById(_slider_id(param_name)))
     if slider and slider.id != changed_id:
-        slider.valueOne = value
+        slider.valueOne = _to_ui_value(value, spec)
 
     spinner = adsk.core.FloatSpinnerCommandInput.cast(inputs.itemById(_spinner_id(param_name)))
     if spinner and spinner.id != changed_id:
@@ -718,7 +743,7 @@ def _set_matching_inputs(inputs, param_name, value, spec, changed_id):
     changed = inputs.itemById(changed_id)
     changed_slider = adsk.core.FloatSliderCommandInput.cast(changed)
     if changed_slider:
-        changed_slider.valueOne = value
+        changed_slider.valueOne = _to_ui_value(value, spec)
 
     changed_spinner = adsk.core.FloatSpinnerCommandInput.cast(changed)
     if changed_spinner:
@@ -738,11 +763,14 @@ def _set_range_inputs(inputs, param_name, minimum, maximum, spec):
 def _set_slider_range(inputs, param_name, minimum, maximum, current_value, spec):
     slider = adsk.core.FloatSliderCommandInput.cast(inputs.itemById(_slider_id(param_name)))
     if slider:
-        slider.minimumValue = min(slider.minimumValue, minimum, current_value)
-        slider.maximumValue = max(slider.maximumValue, maximum, current_value)
-        slider.valueOne = current_value
-        slider.minimumValue = minimum
-        slider.maximumValue = maximum
+        ui_minimum = _to_ui_value(minimum, spec)
+        ui_maximum = _to_ui_value(maximum, spec)
+        ui_current = _to_ui_value(current_value, spec)
+        slider.minimumValue = min(slider.minimumValue, ui_minimum, ui_current)
+        slider.maximumValue = max(slider.maximumValue, ui_maximum, ui_current)
+        slider.valueOne = ui_current
+        slider.minimumValue = ui_minimum
+        slider.maximumValue = ui_maximum
 
     spinner = adsk.core.FloatSpinnerCommandInput.cast(inputs.itemById(_spinner_id(param_name)))
     if spinner:
